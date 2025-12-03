@@ -1,103 +1,137 @@
-# app/models.py
-from datetime import datetime
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Float,
-    Text,
-)
-from sqlalchemy.orm import relationship, declarative_base
-from sqlalchemy.types import JSON
+import datetime
+from enum import Enum
+from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field, EmailStr
 
-Base = declarative_base()
+"""
+Слой Pydantic моделей БД
+"""
 
 
-class OperatorSourceWeight(Base):
-    __tablename__ = "operator_source_weights"
-    operator_id = Column(
-        Integer, ForeignKey("operators.id", ondelete="CASCADE"), primary_key=True
-    )
-    source_id = Column(
-        Integer, ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True
-    )
-    weight = Column(Float, nullable=False, default=0.0)
+class OperatorCreate(BaseModel):
+    """
+    Модель для создания объекта таблицы operators
+    """
+
+    name: str
+    is_active: Optional[bool] = True
+    max_concurrent: Optional[int] = 5
 
 
-class Operator(Base):
-    __tablename__ = "operators"
+class OperatorUpdate(BaseModel):
+    """
+    Модель для обновления объекта таблицы operators
+    """
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(200), nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    max_concurrent = Column(Integer, default=5, nullable=False)
-
-    # Связь с таблицей sources через веса
-    source_weights = relationship(
-        "OperatorSourceWeight", backref="operator", cascade="all, delete-orphan"
-    )
-
-    # Связь с таблицей contacts (backref from Contact.operator)
-    contacts = relationship("Contact", back_populates="operator")
+    name: Optional[str]
+    is_active: Optional[bool]
+    max_concurrent: Optional[int]
 
 
-class Source(Base):
-    __tablename__ = "sources"
+class OperatorOut(BaseModel):
+    """
+    Модель для вывода объекта таблицы operators
+    """
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(
-        String(100), unique=True, nullable=False
-    )  # Уникальный идентификатор, например bot_telegram
-    name = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
+    id: int
+    name: str
+    is_active: bool
+    max_concurrent: int
 
-    source_weights = relationship(
-        "OperatorSourceWeight", backref="source", cascade="all, delete-orphan"
-    )
-    contacts = relationship("Contact", back_populates="source")
+    class Config:
+        orm_mode = True
 
 
-class Lead(Base):
-    __tablename__ = "leads"
+class SourceCreate(BaseModel):
+    """
+    Модель для создания объекта таблицы sources
+    """
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    external_id = Column(
-        String(200), nullable=True, index=True
-    )  # внешний id от бота, если есть
-    phone = Column(String(50), nullable=True, index=True)
-    email = Column(String(200), nullable=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    contacts = relationship("Contact", back_populates="lead")
-
-    __table_args__ = (
-        # можно добавить ограничения уникальности при желании, но внешние данные часто нестроги
-        (),
-    )
+    code: str = Field(..., min_length=1)
+    name: str
+    description: Optional[str] = None
 
 
-class Contact(Base):
-    __tablename__ = "contacts"
+class SourceOut(BaseModel):
+    """
+    Модель для вывода объекта таблицы sources
+    """
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lead_id = Column(
-        Integer, ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    )
-    source_id = Column(
-        Integer, ForeignKey("sources.id", ondelete="SET NULL"), nullable=False
-    )
-    operator_id = Column(
-        Integer, ForeignKey("operators.id", ondelete="SET NULL"), nullable=True
-    )
-    status = Column(
-        String(50), nullable=False, default="new"
-    )  # new, assigned, in_progress, closed
-    payload = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id: int
+    code: str
+    name: str
+    description: Optional[str]
 
-    lead = relationship("Lead", back_populates="contacts")
-    source = relationship("Source", back_populates="contacts")
-    operator = relationship("Operator", back_populates="contacts")
+    class Config:
+        orm_mode = True
+
+
+class LeadCreate(BaseModel):
+    """
+    Модель для создания объекта таблицы leads
+    """
+
+    external_id: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class LeadOut(BaseModel):
+    """
+    Модель для вывода объекта таблицы leads
+    """
+
+    id: int
+    external_id: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+class Status(Enum):
+    NEW = "new"
+    ASSIGNED = "assigned"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+
+
+class ContactCreate(BaseModel):
+    """
+    Модель для создания объекта таблицы contacts
+    При создании обращения происходит поиск клиента в БД по телефону или эл. почте, или по источнику (external_id)
+    """
+
+    lead_id: Optional[int]
+    source_id: Optional[int]
+    operator_id: Optional[int]
+    status: Optional[Status] = Status.NEW
+    payload: Optional[Dict[str, Any]] = None
+
+
+class ContactOut(BaseModel):
+    """
+    Модель для вывода объекта таблицы contacts
+    """
+
+    id: int
+    lead_id: int
+    source_id: int
+    operator_id: int
+    status: Status
+    payload: Optional[Dict[str, Any]]
+    created_at: datetime.datetime
+
+    class Config:
+        orm_mode = True
+
+
+class OperatorSourceWeightCreate(BaseModel):
+    """
+    Модель для создания объекта таблицы operator_source_weights
+    """
+
+    operator_id: Optional[int]
+    source_id: Optional[int]
+    weight: Optional[float]

@@ -1,88 +1,102 @@
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, EmailStr
+from datetime import datetime
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Float,
+    Text,
+)
+from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.types import JSON
+
+Base = declarative_base()
 
 
-# Operator schemas
-class OperatorCreate(BaseModel):
-    name: str
-    is_active: Optional[bool] = True
-    max_concurrent: Optional[int] = 5
+class OperatorSourceWeight(Base):
+    __tablename__ = "operator_source_weights"
+    operator_id = Column(
+        Integer, ForeignKey("operators.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_id = Column(
+        Integer, ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True
+    )
+    weight = Column(Float, nullable=False, default=0.0)
 
 
-class OperatorUpdate(BaseModel):
-    name: Optional[str]
-    is_active: Optional[bool]
-    max_concurrent: Optional[int]
+class Operator(Base):
+    __tablename__ = "operators"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    max_concurrent = Column(Integer, default=5, nullable=False)
+
+    # Связь с таблицей sources через веса
+    source_weights = relationship(
+        "OperatorSourceWeight", backref="operator", cascade="all, delete-orphan"
+    )
+
+    # Связь с таблицей contacts (backref from Contact.operator)
+    contacts = relationship("Contact", back_populates="operator")
 
 
-class OperatorOut(BaseModel):
-    id: int
-    name: str
-    is_active: bool
-    max_concurrent: int
+class Source(Base):
+    __tablename__ = "sources"
 
-    class Config:
-        orm_mode = True
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(
+        String(100), unique=True, nullable=False
+    )  # Уникальный идентификатор, например bot_telegram
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
 
-
-# Source schemas
-class SourceCreate(BaseModel):
-    code: str = Field(..., min_length=1)
-    name: str
-    description: Optional[str] = None
-
-
-class SourceOut(BaseModel):
-    id: int
-    code: str
-    name: str
-    description: Optional[str]
-
-    class Config:
-        orm_mode = True
+    source_weights = relationship(
+        "OperatorSourceWeight", backref="source", cascade="all, delete-orphan"
+    )
+    contacts = relationship("Contact", back_populates="source")
 
 
-# Lead schemas
-class LeadCreate(BaseModel):
-    external_id: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+class Lead(Base):
+    __tablename__ = "leads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    external_id = Column(
+        String(200), nullable=True, index=True
+    )  # внешний id от бота, если есть
+    phone = Column(String(50), nullable=True, index=True)
+    email = Column(String(200), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    contacts = relationship("Contact", back_populates="lead")
+
+    __table_args__ = (
+        # можно добавить ограничения уникальности при желании, но внешние данные часто нестроги
+        (),
+    )
 
 
-class LeadOut(BaseModel):
-    id: int
-    external_id: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
+class Contact(Base):
+    __tablename__ = "contacts"
 
-    class Config:
-        orm_mode = True
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lead_id = Column(
+        Integer, ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id = Column(
+        Integer, ForeignKey("sources.id", ondelete="SET NULL"), nullable=False
+    )
+    operator_id = Column(
+        Integer, ForeignKey("operators.id", ondelete="SET NULL"), nullable=True
+    )
+    status = Column(
+        String(50), nullable=False, default="new"
+    )  # new, assigned, in_progress, closed
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-
-# Contact (обращение) schemas
-class ContactCreate(BaseModel):
-    # вход при создании обращения
-    # минимум: либо external_id or phone or email should be present to match lead
-    external_id: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-
-    source_code: str  # идентификатор источника/бота
-    payload: Optional[Dict[str, Any]] = None
-
-
-class ContactOut(BaseModel):
-    id: int
-    lead: LeadOut
-    source: SourceOut
-    operator: Optional[OperatorOut]
-    status: str
-    payload: Optional[Dict[str, Any]]
-
-    class Config:
-        orm_mode = True
-
-
-# For updating weights per source
-class SourceWeightsUpdate(BaseModel):
-    weights: Dict[int, float]  # operator_id -> weight
+    lead = relationship("Lead", back_populates="contacts")
+    source = relationship("Source", back_populates="contacts")
+    operator = relationship("Operator", back_populates="contacts")
