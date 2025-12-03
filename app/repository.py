@@ -10,14 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
-    OperatorCreate,
     OperatorOut,
     LeadOut,
-    LeadCreate,
-    SourceCreate,
     SourceOut,
     OperatorSourceWeightCreate,
-    ContactCreate,
     ContactOut,
 )
 from app.schemas import Operator, Lead, Source, OperatorSourceWeight, Contact
@@ -39,7 +35,7 @@ class OperatorRepository:
         :param max_concurrent: максимальная нагрузка оператора
         :return: модель OperatorOut
         """
-        operator = OperatorCreate(
+        operator = Operator(
             name=name, is_active=is_active, max_concurrent=max_concurrent
         )
         db.add(operator)
@@ -123,7 +119,7 @@ class LeadRepository:
         :param external_id: идентификатор внешнего источника
         :return: модель LeadOut
         """
-        lead = LeadCreate(external_id=external_id)
+        lead = Lead(external_id=external_id)
         db.add(lead)
         await db.commit()
         await db.refresh(lead)
@@ -144,7 +140,7 @@ class SourceRepository:
         :param code: уникальный идентификатор источника
         :return: модель SourceOut
         """
-        source = SourceCreate(name=name, code=code)
+        source = Source(name=name, code=code)
         db.add(source)
         await db.commit()
         await db.refresh(source)
@@ -194,7 +190,7 @@ class WeightRepository:
         # Добавляем новые веса
         for w in weights:
             db.add(
-                OperatorSourceWeightCreate(
+                OperatorSourceWeight(
                     source_id=source_id,
                     operator_id=w.operator_id,
                     weight=w.weight,
@@ -245,9 +241,7 @@ class ContactRepository:
         :param operator_id: идентификатор оператора
         :return: модель ContactOut
         """
-        contact = ContactCreate(
-            lead_id=lead_id, source_id=source_id, operator_id=operator_id
-        )
+        contact = Contact(lead_id=lead_id, source_id=source_id, operator_id=operator_id)
         db.add(contact)
         await db.commit()
         await db.refresh(contact)

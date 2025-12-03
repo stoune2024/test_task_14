@@ -12,6 +12,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.types import JSON
 
+
+"""
+Слой схемы БД
+"""
+
+
 Base = declarative_base()
 
 
@@ -23,7 +29,7 @@ class OperatorSourceWeight(Base):
     source_id = Column(
         Integer, ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True
     )
-    weight = Column(Float, nullable=False, default=0.0)
+    weight = Column(Float, nullable=False, default=0.0)  # 0 - оператор занят
 
 
 class Operator(Base):
