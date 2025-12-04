@@ -4,7 +4,7 @@ import random
 from pydantic import EmailStr
 
 from app.schemas import Lead, Operator, Contact, Source, OperatorSourceWeight
-from app.models import LeadOut, ContactOut
+from app.models import LeadOut
 
 """
 Бизнес-логика для маршрутизации CRM: идентификация потенциальных клиентов, доступность оператора,
@@ -21,21 +21,20 @@ class LeadService:
 
     @staticmethod
     def find_or_create_lead(
-            db: Session,
-            *,
-            external_id: str | None,
-            phone: str | None,
-            email: EmailStr | None,
+        db_session: Session,
+        external_id: str | None,
+        phone: str | None,
+        email: EmailStr | None,
     ) -> Lead:
         """
         Функция поиска или создания лида, если он обращается впервые
-        :param db: сессия БД
+        :param db_session: сессия БД
         :param external_id: идентификатор источника
         :param phone: номер телефона лида
         :param email: электронная почта
         :return: модель LeadOut
         """
-        query = db.query(Lead)
+        query = db_session.query(Lead)
         lead: Optional[Lead] = None
 
         if external_id:
@@ -54,10 +53,15 @@ class LeadService:
             phone=phone,
             email=email,
         )
-        db.add(new_lead)
-        db.commit()
-        db.refresh(new_lead)
-        new_lead_out = LeadOut.model_validate(new_lead)
+        db_session.add(new_lead)
+        db_session.commit()
+        new_lead_out = LeadOut(
+            id=new_lead.id,
+            external_id=new_lead.external_id,
+            phone=new_lead.phone,
+            email=new_lead.email,
+        )
+        db_session.refresh(new_lead)
         return new_lead_out
 
 
@@ -131,7 +135,7 @@ class OperatorService:
 
     @staticmethod
     def choose_operator_weighted(
-            eligible: List[Operator], weights: Dict[int, float]
+        eligible: List[Operator], weights: Dict[int, float]
     ) -> Optional[Operator]:
         """
         Функция подбора оператора
@@ -161,12 +165,11 @@ class ContactService:
 
     @staticmethod
     def create_contact(
-            db: Session,
-            *,
-            lead: Lead,
-            source: Source,
-            operator: Optional[Operator],
-            payload: dict | None,
+        db: Session,
+        lead: Lead,
+        source: Source,
+        operator: Optional[Operator],
+        payload: dict | None,
     ) -> Contact:
         """
         Функция создания обращения
@@ -193,22 +196,21 @@ class ContactService:
 
 class RoutingService:
     """
-    Класс для осуществления бизнес логики маршрутизации обращения
+    Главный класс для осуществления бизнес логики маршрутизации обращения
     """
 
     @staticmethod
     def route_and_create_contact(
-            db: Session,
-            *,
-            external_id: str | None,
-            phone: str | None,
-            email: EmailStr | None,
-            source_code: str,
-            payload: dict | None,
-    ) -> ContactOut:
+        db_session: Session,
+        external_id: str | None,
+        phone: str | None,
+        email: EmailStr | None,
+        source_code: str,
+        payload: dict | None,
+    ) -> Contact:
         """
         Функция, создающая и маршрутизирующая обращение
-        :param db: сессия БД
+        :param db_session: сессия БД
         :param external_id: идентификатор источника
         :param phone: номер телефона лида
         :param email: электронная почта лида
@@ -218,27 +220,27 @@ class RoutingService:
         """
         # 1. Идентифицируем лида
         lead = LeadService.find_or_create_lead(
-            db,
+            db_session,
             external_id=external_id,
             phone=phone,
             email=email,
         )
 
         # 2. Определяем источник
-        source = db.query(Source).filter(Source.code == source_code).first()
+        source = db_session.query(Source).filter(Source.code == source_code).first()
         if not source:
             raise ValueError(f"Источник не найден: {source_code}")
 
         # 3. Подходящие оператора
-        eligible = OperatorService.eligible_operators_for_source(db, source)
-        weights = OperatorService.get_weights_for_source(db, source)
+        eligible = OperatorService.eligible_operators_for_source(db_session, source)
+        weights = OperatorService.get_weights_for_source(db_session, source)
 
         # 4. Распределение весов и получение соответствующего оператора
         operator = OperatorService.choose_operator_weighted(eligible, weights)
 
         # 5. Создание обращения (оператор может быть None)
         return ContactService.create_contact(
-            db,
+            db_session,
             lead=lead,
             source=source,
             operator=operator,

@@ -78,11 +78,6 @@ class Lead(Base):
 
     contacts = relationship("Contact", back_populates="lead")
 
-    __table_args__ = (
-        # можно добавить ограничения уникальности при желании, но внешние данные часто нестроги
-        (),
-    )
-
 
 class Contact(Base):
     __tablename__ = "contacts"

@@ -33,10 +33,10 @@ class OperatorOut(BaseModel):
     Модель для вывода объекта таблицы operators
     """
 
-    id: int
-    name: str
-    is_active: bool
-    max_concurrent: int
+    id: int | None
+    name: str | None
+    is_active: bool | None
+    max_concurrent: int | None
 
     class Config:
         orm_mode = True
@@ -99,13 +99,13 @@ class Status(Enum):
 
 class ContactCreate(BaseModel):
     """
-    Модель для создания объекта таблицы contacts
+    Модель для создания обращения
     При создании обращения происходит поиск клиента в БД по телефону или эл. почте, или по источнику (external_id)
     """
 
-    lead_id: Optional[int]
-    source_id: Optional[int]
-    operator_id: Optional[int]
+    external_id: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
     status: Optional[Status] = Status.NEW
     payload: Optional[Dict[str, Any]] = None
 
@@ -118,10 +118,10 @@ class ContactOut(BaseModel):
     id: int
     lead_id: int
     source_id: int
-    operator_id: int
+    operator_id: int | None
     status: Status
     payload: Optional[Dict[str, Any]]
-    created_at: datetime.datetime
+    created_at: datetime.datetime | None = Field(default=datetime.datetime.utcnow())
 
     class Config:
         orm_mode = True
