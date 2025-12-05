@@ -6,7 +6,7 @@
 """
 
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import Session, sessionmaker
 from app.models import (
@@ -17,8 +17,9 @@ from app.models import (
     ContactOut,
     OperatorUpdate,
     ContactCreate,
+    LeadsAndContactsOut,
 )
-from app.schemas import Operator, Lead, Source, OperatorSourceWeight, Base
+from app.schemas import Operator, Lead, Source, OperatorSourceWeight, Base, Contact
 from settings import settings
 from app.services import RoutingService
 from sqlalchemy import create_engine
@@ -139,16 +140,21 @@ class LeadRepository:
     """
 
     @staticmethod
-    async def get_by_lead_id(db: AsyncSession, lead_id) -> Optional[LeadOut]:
-        """
-        Функция получения лида по идентификатору источника
-        :param db: сессия ДБ
-        :param external_id: идентификатор внешнего источника
-        :return: модель LeadOut
-        """
-        result = await db.execute(select(Lead).where(Lead.external_id == external_id))
-        lead_out = LeadOut.model_validate(result.scalars().first())
-        return lead_out
+    async def get_leads_and_contacts(db_session) -> List[LeadsAndContactsOut]:
+        stmt = select(
+            Lead.phone.label("leads_phone"),
+            Lead.id.label("leads_id"),
+            Contact.id.label("contacts_id"),
+        ).join(Contact, Lead.id == Contact.lead_id)
+        list_of_models = []
+        result = await db_session.execute(stmt)
+        rows = result.all()
+        for row in rows:
+            leads_and_models_model = LeadsAndContactsOut(
+                lead_phone=row[0], lead_id=row[1], contact_id=row[2]
+            )
+            list_of_models.append(leads_and_models_model)
+        return list_of_models
 
 
 class SourceRepository:
@@ -218,26 +224,6 @@ class WeightRepository:
 
         await db_session.commit()
 
-    async def get_for_source(
-        self, db: AsyncSession, source_id: int
-    ) -> List[OperatorSourceWeightCreate]:
-        """
-        Функция получения списка операторов и их весов по конкретному источнику по его source_id
-        :param db: сессия ДБ
-        :param source_id: идентфикатор источника
-        :return:
-        """
-        result = await db.execute(
-            select(OperatorSourceWeight).where(
-                OperatorSourceWeight.source_id == source_id
-            )
-        )
-        operator_source_weights_list = []
-        for i in result.scalars().all():
-            data_out = OperatorSourceWeightCreate.model_validate(i)
-            operator_source_weights_list.append(data_out)
-        return operator_source_weights_list
-
 
 class ContactRepository:
     """
@@ -277,21 +263,25 @@ class ContactRepository:
         )
         return contact_out
 
-    # async def get_all_for_lead(
-    #     self, db: AsyncSession, lead_id: int
-    # ) -> List[ContactOut]:
-    #     """
-    #     Функция возврата всех контактов по лиду по его lead_id
-    #     :param db: сессия БД
-    #     :param lead_id: идентификатор лида
-    #     :return: список моделей ContactOut
-    #     """
-    #     result = await db.execute(select(Contact).where(Contact.lead_id == lead_id))
-    #     contact_out_list = []
-    #     for i in result.scalars().all():
-    #         contact_out = ContactOut.model_validate(i)
-    #         contact_out_list.append(contact_out)
-    #     return contact_out_list
+    @staticmethod
+    async def get_operator_stats(db_session):
+        stmt = select(
+            func.count(Contact.id).label("contacts_count"),
+            Contact.operator_id.label("operator_id"),
+        ).group_by(Contact.operator_id)
+        result = await db_session.execute(stmt)
+        rows = result.mappings().all()
+        return rows
+
+    @staticmethod
+    async def get_source_stats(db_session):
+        stmt = select(
+            func.count(Contact.id).label("contacts_count"),
+            Contact.source_id.label("source_id"),
+        ).group_by(Contact.source_id)
+        result = await db_session.execute(stmt)
+        rows = result.mappings().all()
+        return rows
 
 
 async def init_db():

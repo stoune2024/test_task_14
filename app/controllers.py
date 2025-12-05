@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional, Any, Dict
 
 from app.routers import crm_router
 from fastapi import Depends, HTTPException
@@ -12,6 +12,7 @@ from app.models import (
     OperatorSourceWeightCreate,
     ContactCreate,
     ContactOut,
+    LeadsAndContactsOut,
 )
 from app.repository import (
     get_session,
@@ -22,6 +23,10 @@ from app.repository import (
     ContactRepository,
     LeadRepository,
 )
+
+"""
+Слой FastAPI эндпоинтов
+"""
 
 
 @crm_router.post("/operators", response_model=OperatorOut)
@@ -133,34 +138,55 @@ async def create_contact(
     :param db_session: синхронная сессия БД
     :return: модель ContactOut
     """
-    contact_out = await ContactRepository.create(
-        data,
-        db_session,
-        source_code,
-    )
-    return contact_out
+    try:
+        contact_out = await ContactRepository.create(
+            data,
+            db_session,
+            source_code,
+        )
+        return contact_out
+    except Exception as e:
+        return {"error": e}
 
 
-@crm_router.get("/contacts_and_leads", response_model=list[ContactOut])
+@crm_router.get("/contacts_and_leads", response_model=list[LeadsAndContactsOut])
 async def list_contacts(db_session: AsyncSession = Depends(get_session)):
     """
     Эндпоинт для просмотра списка лидов и их обращений
-    :param lead_id:
-    :param db_session:
-    :return:
+    :param db_session: сессия БД
+    :return: список моделей LeadsAndContactsOut
     """
-    # db_session.execute(Customer.id, Customer.username, Order.id).join(Order).all()
+    try:
+        return await LeadRepository.get_leads_and_contacts(db_session)
+    except Exception as e:
+        return {"error": e}
 
-    # s = select(
-    #             orders.c.id,
-    #             orders.c.date_placed
-    # ).select_from(
-    #     orders.join(customers)
-    # ).where(
-    #     and_(
-    #         customers.c.first_name == "Vladimir",
-    #         customers.c.last_name == "Belousov",
-    #     )
-    # )
 
-    return await LeadRepository.get_by_lead_id(db_session, lead_id)
+@crm_router.get("/contacts_by_operators")
+async def group_contacts_by_operators(
+    db_session: AsyncSession = Depends(get_session),
+) -> Optional[List[Dict[Any, Any]]]:
+    """
+    Эндпоинт отображения распределения обращений по операторам
+    :param db_session: сессия БД
+    :return: список словарей с парами количество_контактов:идентификатор_оператора
+    """
+    try:
+        return await ContactRepository.get_operator_stats(db_session)
+    except Exception as e:
+        return {"error": e}
+
+
+@crm_router.get("/contacts_by_sources")
+async def group_contacts_by_sources(
+    db_session: AsyncSession = Depends(get_session),
+) -> Optional[List[Dict[Any, Any]]]:
+    """
+    Эндпоинт отображения распределения обращений по источникам
+    :param db_session: сессия БД
+    :return: список словарей с парами количество_контактов:идентификатор_источника
+    """
+    try:
+        return await ContactRepository.get_source_stats(db_session)
+    except Exception as e:
+        return {"error": e}

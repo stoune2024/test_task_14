@@ -5,6 +5,10 @@ from fastapi import Depends
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
+"""
+Слой настроек pydantic-settings
+"""
+
 
 class Settings(BaseSettings):
     DATABASE_URL: str

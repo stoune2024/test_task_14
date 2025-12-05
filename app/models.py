@@ -66,16 +66,6 @@ class SourceOut(BaseModel):
         orm_mode = True
 
 
-class LeadCreate(BaseModel):
-    """
-    Модель для создания объекта таблицы leads
-    """
-
-    external_id: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-
-
 class LeadOut(BaseModel):
     """
     Модель для вывода объекта таблицы leads
@@ -115,11 +105,11 @@ class ContactOut(BaseModel):
     Модель для вывода объекта таблицы contacts
     """
 
-    id: int
-    lead_id: int
-    source_id: int
+    id: int | None
+    lead_id: int | None
+    source_id: int | None
     operator_id: int | None
-    status: Status
+    status: Status | None
     payload: Optional[Dict[str, Any]]
     created_at: datetime.datetime | None = Field(default=datetime.datetime.utcnow())
 
@@ -135,3 +125,13 @@ class OperatorSourceWeightCreate(BaseModel):
     operator_id: Optional[int]
     source_id: Optional[int]
     weight: Optional[float]
+
+
+class LeadsAndContactsOut(BaseModel):
+    """
+    Модель для отображения списка лидов и их обращений
+    """
+
+    lead_phone: str
+    lead_id: int
+    contact_id: int

@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from uvicorn import run
 from app.controllers import crm_router
 
+"""
+Слой запуска приложения
+"""
+
 
 app = FastAPI(title="FastAPI CRM")
 
