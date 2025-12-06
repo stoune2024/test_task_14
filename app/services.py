@@ -101,7 +101,7 @@ class OperatorService:
             .filter(OperatorSourceWeight.source_id == source.id)
             .all()
         )
-        operator_ids = [l.operator_id for l in links]
+        operator_ids = [i.operator_id for i in links]
 
         if not operator_ids:
             return []

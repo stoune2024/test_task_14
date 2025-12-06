@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.orm import Session, sessionmaker
 from app.models import (
     OperatorOut,
-    LeadOut,
     SourceOut,
     OperatorSourceWeightCreate,
     ContactOut,
